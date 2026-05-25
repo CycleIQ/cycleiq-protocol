@@ -6,6 +6,18 @@ The SDK is transport-neutral: it builds and parses `cycleiq_frame_t` values that
 contain the extended CAN ID, payload length, and payload bytes. Each platform is
 responsible for sending or receiving those frames through its own CAN driver.
 
+## Versioning
+
+The SDK exposes two versions:
+
+- `CYCLEIQ_SDK_VERSION_*`: the C SDK implementation version.
+- `CYCLEIQ_PROTOCOL_VERSION_*`: the wire protocol version.
+
+The display should call `cycleiq_get_protocol_version()`, wait for a
+`PEAK_PACKET_TYPE_PROTOCOL_VERSION` response, parse it with
+`cycleiq_read_protocol_version()`, and compare versions with
+`cycleiq_protocol_is_compatible()` before enabling ride commands.
+
 ## ESP-IDF
 
 Use this repository as an ESP-IDF component. The root `CMakeLists.txt` registers

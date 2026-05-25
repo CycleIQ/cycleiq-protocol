@@ -91,6 +91,29 @@ static bool cycleiq_set_len(cycleiq_frame_t *frame, uint8_t len) {
   return true;
 }
 
+cycleiq_version_t cycleiq_sdk_version(void) {
+  cycleiq_version_t version = {
+      .major = CYCLEIQ_SDK_VERSION_MAJOR,
+      .minor = CYCLEIQ_SDK_VERSION_MINOR,
+      .patch = CYCLEIQ_SDK_VERSION_PATCH,
+  };
+  return version;
+}
+
+cycleiq_version_t cycleiq_protocol_version(void) {
+  cycleiq_version_t version = {
+      .major = CYCLEIQ_PROTOCOL_VERSION_MAJOR,
+      .minor = CYCLEIQ_PROTOCOL_VERSION_MINOR,
+      .patch = CYCLEIQ_PROTOCOL_VERSION_PATCH,
+  };
+  return version;
+}
+
+bool cycleiq_protocol_is_compatible(cycleiq_version_t local,
+                                    cycleiq_version_t remote) {
+  return local.major == remote.major && local.minor >= remote.minor;
+}
+
 void cycleiq_frame_init(cycleiq_frame_t *frame, uint8_t destination_node_id,
                         uint8_t type_or_command) {
   if (frame == NULL) {
@@ -192,6 +215,11 @@ bool cycleiq_set_screen(cycleiq_frame_t *frame, cycleiq_screen_t screen) {
 
   frame->data[0] = (uint8_t)screen;
   return true;
+}
+
+bool cycleiq_get_protocol_version(cycleiq_frame_t *frame) {
+  cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_PROTOCOL_VERSION_GET);
+  return cycleiq_set_len(frame, 0);
 }
 
 bool cycleiq_telemetry_live_status(cycleiq_frame_t *frame, float speed_mps,
@@ -312,11 +340,46 @@ bool cycleiq_telemetry_trip_secondary(cycleiq_frame_t *frame,
   return true;
 }
 
+bool cycleiq_telemetry_protocol_version(cycleiq_frame_t *frame) {
+  cycleiq_frame_init(frame, PEAK_CAN_ID, PEAK_PACKET_TYPE_PROTOCOL_VERSION);
+  if (!cycleiq_set_len(frame, PEAK_PACKET_PROTOCOL_VERSION_LEN)) {
+    return false;
+  }
+
+  cycleiq_version_t protocol = cycleiq_protocol_version();
+  cycleiq_version_t sdk = cycleiq_sdk_version();
+  frame->data[0] = protocol.major;
+  frame->data[1] = protocol.minor;
+  frame->data[2] = protocol.patch;
+  frame->data[3] = sdk.major;
+  frame->data[4] = sdk.minor;
+  frame->data[5] = sdk.patch;
+  return true;
+}
+
 bool cycleiq_command_read_u8(const cycleiq_frame_t *frame, uint8_t *value) {
   if (frame == NULL || value == NULL || frame->len < 1u) {
     return false;
   }
 
   *value = frame->data[0];
+  return true;
+}
+
+bool cycleiq_read_protocol_version(const cycleiq_frame_t *frame,
+                                   cycleiq_version_t *protocol_version,
+                                   cycleiq_version_t *sdk_version) {
+  if (frame == NULL || protocol_version == NULL || sdk_version == NULL ||
+      cycleiq_frame_type(frame) != PEAK_PACKET_TYPE_PROTOCOL_VERSION ||
+      frame->len < PEAK_PACKET_PROTOCOL_VERSION_LEN) {
+    return false;
+  }
+
+  protocol_version->major = frame->data[0];
+  protocol_version->minor = frame->data[1];
+  protocol_version->patch = frame->data[2];
+  sdk_version->major = frame->data[3];
+  sdk_version->minor = frame->data[4];
+  sdk_version->patch = frame->data[5];
   return true;
 }

@@ -24,6 +24,18 @@ extern "C" {
 
 #define CYCLEIQ_CAN_MAX_PAYLOAD_LEN 8u
 
+#define CYCLEIQ_SDK_VERSION_MAJOR 0u
+#define CYCLEIQ_SDK_VERSION_MINOR 2u
+#define CYCLEIQ_SDK_VERSION_PATCH 0u
+
+/*
+ * Increment major for incompatible wire changes, minor for backward-compatible
+ * packet additions, and patch for implementation-only SDK fixes.
+ */
+#define CYCLEIQ_PROTOCOL_VERSION_MAJOR 1u
+#define CYCLEIQ_PROTOCOL_VERSION_MINOR 1u
+#define CYCLEIQ_PROTOCOL_VERSION_PATCH 0u
+
 #define PEAK_CAN_ID 0x6Au
 #define CYCLEIQ_CAN_ID 0x6Bu
 
@@ -42,6 +54,7 @@ typedef enum {
   CYCLEIQ_COMM_SCREEN_SET = 0x05u,
   CYCLEIQ_COMM_CONFIG_GET = 0x06u,
   CYCLEIQ_COMM_CONFIG_SET = 0x07u,
+  CYCLEIQ_COMM_PROTOCOL_VERSION_GET = 0x08u,
 } cycleiq_command_t;
 
 typedef enum {
@@ -70,6 +83,7 @@ typedef enum {
   PEAK_PACKET_TYPE_LIVE_STATUS = 0x14u,
   PEAK_PACKET_TYPE_TRIP_PRIMARY = 0x15u,
   PEAK_PACKET_TYPE_TRIP_SECONDARY = 0x16u,
+  PEAK_PACKET_TYPE_PROTOCOL_VERSION = 0x17u,
 } peak_packet_type_t;
 
 #define PEAK_PACKET_BATTERY_STATUS_LEN 5u
@@ -79,6 +93,7 @@ typedef enum {
 #define PEAK_PACKET_LIVE_STATUS_LEN 4u
 #define PEAK_PACKET_TRIP_PRIMARY_LEN 8u
 #define PEAK_PACKET_TRIP_SECONDARY_LEN 3u
+#define PEAK_PACKET_PROTOCOL_VERSION_LEN 6u
 
 #define CYCLEIQ_SCALE_SPEED_MPS_TO_CKMH 360.0f
 #define CYCLEIQ_SCALE_VOLTS_TO_CV 100.0f
@@ -92,6 +107,17 @@ typedef struct {
   uint8_t len;
   uint8_t data[CYCLEIQ_CAN_MAX_PAYLOAD_LEN];
 } cycleiq_frame_t;
+
+typedef struct {
+  uint8_t major;
+  uint8_t minor;
+  uint8_t patch;
+} cycleiq_version_t;
+
+cycleiq_version_t cycleiq_sdk_version(void);
+cycleiq_version_t cycleiq_protocol_version(void);
+bool cycleiq_protocol_is_compatible(cycleiq_version_t local,
+                                    cycleiq_version_t remote);
 
 void cycleiq_frame_init(cycleiq_frame_t *frame, uint8_t destination_node_id,
                         uint8_t type_or_command);
@@ -107,6 +133,7 @@ bool cycleiq_set_support_mode(cycleiq_frame_t *frame,
                               cycleiq_support_mode_t mode);
 bool cycleiq_set_ride_mode(cycleiq_frame_t *frame, cycleiq_ride_mode_t mode);
 bool cycleiq_set_screen(cycleiq_frame_t *frame, cycleiq_screen_t screen);
+bool cycleiq_get_protocol_version(cycleiq_frame_t *frame);
 
 bool cycleiq_telemetry_live_status(cycleiq_frame_t *frame, float speed_mps,
                                    uint16_t power_w);
@@ -128,8 +155,12 @@ bool cycleiq_telemetry_trip_primary(cycleiq_frame_t *frame,
 bool cycleiq_telemetry_trip_secondary(cycleiq_frame_t *frame,
                                       float average_speed_mps,
                                       float range_km);
+bool cycleiq_telemetry_protocol_version(cycleiq_frame_t *frame);
 
 bool cycleiq_command_read_u8(const cycleiq_frame_t *frame, uint8_t *value);
+bool cycleiq_read_protocol_version(const cycleiq_frame_t *frame,
+                                   cycleiq_version_t *protocol_version,
+                                   cycleiq_version_t *sdk_version);
 
 #ifdef __cplusplus
 }
