@@ -1,10 +1,15 @@
 #ifndef CYCLEIQ_PROTOCOL_H
 #define CYCLEIQ_PROTOCOL_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
- * Shared CycleIQ ESC/display protocol.
+ * Shared CycleIQ ESC/display protocol SDK.
  *
  * Transport:
  * - Classic CAN, extended identifiers, max payload 8 bytes.
@@ -16,6 +21,8 @@
  * - PEAK_CAN_ID is the display node. The ESC sends telemetry there.
  * - CYCLEIQ_CAN_ID is the ESC node. The display sends commands there.
  */
+
+#define CYCLEIQ_CAN_MAX_PAYLOAD_LEN 8u
 
 #define PEAK_CAN_ID 0x6Au
 #define CYCLEIQ_CAN_ID 0x6Bu
@@ -80,20 +87,52 @@ typedef enum {
 #define CYCLEIQ_SCALE_AH_TO_CAH 100.0f
 #define CYCLEIQ_SCALE_KM_TO_M 1000.0f
 
-static inline void cycleiq_write_be_u16(uint8_t *out, uint16_t value) {
-  out[0] = (uint8_t)(value >> 8);
-  out[1] = (uint8_t)value;
-}
+typedef struct {
+  uint32_t id;
+  uint8_t len;
+  uint8_t data[CYCLEIQ_CAN_MAX_PAYLOAD_LEN];
+} cycleiq_frame_t;
 
-static inline void cycleiq_write_be_i16(uint8_t *out, int16_t value) {
-  cycleiq_write_be_u16(out, (uint16_t)value);
-}
+void cycleiq_frame_init(cycleiq_frame_t *frame, uint8_t destination_node_id,
+                        uint8_t type_or_command);
+bool cycleiq_frame_from_can(cycleiq_frame_t *frame, uint32_t id,
+                            const uint8_t *data, uint8_t len);
+bool cycleiq_frame_is_for_node(const cycleiq_frame_t *frame, uint8_t node_id);
+uint8_t cycleiq_frame_type(const cycleiq_frame_t *frame);
 
-static inline void cycleiq_write_be_u32(uint8_t *out, uint32_t value) {
-  out[0] = (uint8_t)(value >> 24);
-  out[1] = (uint8_t)(value >> 16);
-  out[2] = (uint8_t)(value >> 8);
-  out[3] = (uint8_t)value;
+bool cycleiq_power_off(cycleiq_frame_t *frame);
+bool cycleiq_power_on(cycleiq_frame_t *frame);
+bool cycleiq_set_gear(cycleiq_frame_t *frame, uint8_t gear);
+bool cycleiq_set_support_mode(cycleiq_frame_t *frame,
+                              cycleiq_support_mode_t mode);
+bool cycleiq_set_ride_mode(cycleiq_frame_t *frame, cycleiq_ride_mode_t mode);
+bool cycleiq_set_screen(cycleiq_frame_t *frame, cycleiq_screen_t screen);
+
+bool cycleiq_telemetry_live_status(cycleiq_frame_t *frame, float speed_mps,
+                                   uint16_t power_w);
+bool cycleiq_telemetry_battery_status(cycleiq_frame_t *frame,
+                                      uint8_t battery_pct, float voltage_v,
+                                      float current_a);
+bool cycleiq_telemetry_motor_status(cycleiq_frame_t *frame,
+                                    int8_t motor_temperature_c,
+                                    int8_t controller_temperature_c,
+                                    float motor_current_a, float motor_rpm);
+bool cycleiq_telemetry_controller_state(cycleiq_frame_t *frame, uint8_t gear,
+                                        cycleiq_support_mode_t mode,
+                                        cycleiq_ride_mode_t ride_mode);
+bool cycleiq_telemetry_battery_energy(cycleiq_frame_t *frame, float watt_hours,
+                                      float amp_hours);
+bool cycleiq_telemetry_trip_primary(cycleiq_frame_t *frame,
+                                    float trip_distance_km,
+                                    uint32_t trip_time_s);
+bool cycleiq_telemetry_trip_secondary(cycleiq_frame_t *frame,
+                                      float average_speed_mps,
+                                      float range_km);
+
+bool cycleiq_command_read_u8(const cycleiq_frame_t *frame, uint8_t *value);
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif
