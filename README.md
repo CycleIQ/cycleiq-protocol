@@ -16,7 +16,15 @@ The SDK exposes two versions:
 The display should call `cycleiq_get_protocol_version()`, wait for a
 `PEAK_PACKET_TYPE_PROTOCOL_VERSION` response, parse it with
 `cycleiq_read_protocol_version()`, and compare versions with
-`cycleiq_protocol_is_compatible()` before enabling ride commands.
+`cycleiq_protocol_support_status()` before enabling ride commands.
+
+Compatibility policy:
+
+- `CYCLEIQ_VERSION_SUPPORTED`: same major and local minor is greater than or
+  equal to remote minor.
+- `CYCLEIQ_VERSION_PARTIALLY_SUPPORTED`: same major but remote minor is newer;
+  stable existing packets are safe, but newer features may be missing locally.
+- `CYCLEIQ_VERSION_UNSUPPORTED`: different major; do not send ride commands.
 
 ## ESP-IDF
 

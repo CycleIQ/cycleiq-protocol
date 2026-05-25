@@ -114,8 +114,17 @@ typedef struct {
   uint8_t patch;
 } cycleiq_version_t;
 
+typedef enum {
+  CYCLEIQ_VERSION_UNSUPPORTED = 0,
+  CYCLEIQ_VERSION_PARTIALLY_SUPPORTED = 1,
+  CYCLEIQ_VERSION_SUPPORTED = 2,
+} cycleiq_version_support_t;
+
 cycleiq_version_t cycleiq_sdk_version(void);
 cycleiq_version_t cycleiq_protocol_version(void);
+cycleiq_version_support_t
+cycleiq_protocol_support_status(cycleiq_version_t local,
+                                cycleiq_version_t remote);
 bool cycleiq_protocol_is_compatible(cycleiq_version_t local,
                                     cycleiq_version_t remote);
 

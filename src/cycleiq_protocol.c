@@ -109,9 +109,24 @@ cycleiq_version_t cycleiq_protocol_version(void) {
   return version;
 }
 
+cycleiq_version_support_t
+cycleiq_protocol_support_status(cycleiq_version_t local,
+                                cycleiq_version_t remote) {
+  if (local.major != remote.major) {
+    return CYCLEIQ_VERSION_UNSUPPORTED;
+  }
+
+  if (local.minor < remote.minor) {
+    return CYCLEIQ_VERSION_PARTIALLY_SUPPORTED;
+  }
+
+  return CYCLEIQ_VERSION_SUPPORTED;
+}
+
 bool cycleiq_protocol_is_compatible(cycleiq_version_t local,
                                     cycleiq_version_t remote) {
-  return local.major == remote.major && local.minor >= remote.minor;
+  return cycleiq_protocol_support_status(local, remote) !=
+         CYCLEIQ_VERSION_UNSUPPORTED;
 }
 
 void cycleiq_frame_init(cycleiq_frame_t *frame, uint8_t destination_node_id,
