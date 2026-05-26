@@ -25,7 +25,7 @@ extern "C" {
 #define CYCLEIQ_CAN_MAX_PAYLOAD_LEN 8u
 
 #define CYCLEIQ_SDK_VERSION_MAJOR 0u
-#define CYCLEIQ_SDK_VERSION_MINOR 2u
+#define CYCLEIQ_SDK_VERSION_MINOR 3u
 #define CYCLEIQ_SDK_VERSION_PATCH 0u
 
 /*
@@ -33,7 +33,7 @@ extern "C" {
  * packet additions, and patch for implementation-only SDK fixes.
  */
 #define CYCLEIQ_PROTOCOL_VERSION_MAJOR 1u
-#define CYCLEIQ_PROTOCOL_VERSION_MINOR 1u
+#define CYCLEIQ_PROTOCOL_VERSION_MINOR 2u
 #define CYCLEIQ_PROTOCOL_VERSION_PATCH 0u
 
 #define PEAK_CAN_ID 0x6Au
@@ -64,6 +64,28 @@ typedef enum {
 } cycleiq_support_mode_t;
 
 typedef enum {
+  CYCLEIQ_CONFIG_FIELD_ALL = 0u,
+  CYCLEIQ_CONFIG_FIELD_MAX_SPEED_KPH = 1u,
+  CYCLEIQ_CONFIG_FIELD_BATTERY_RESISTANCE_MOHM = 2u,
+  CYCLEIQ_CONFIG_FIELD_WHEEL_DIAMETER_MM = 3u,
+} cycleiq_config_field_t;
+
+typedef enum {
+  CYCLEIQ_CONFIG_OP_SET_FIELD = 0u,
+  CYCLEIQ_CONFIG_OP_SET_SNAPSHOT = 1u,
+  CYCLEIQ_CONFIG_OP_COMMIT = 2u,
+  CYCLEIQ_CONFIG_OP_DISCARD = 3u,
+} cycleiq_config_op_t;
+
+typedef enum {
+  CYCLEIQ_CONFIG_STATUS_OK = 0u,
+  CYCLEIQ_CONFIG_STATUS_MALFORMED = 1u,
+  CYCLEIQ_CONFIG_STATUS_UNKNOWN_FIELD = 2u,
+  CYCLEIQ_CONFIG_STATUS_INVALID_VALUE = 3u,
+  CYCLEIQ_CONFIG_STATUS_PERSIST_FAILED = 4u,
+} cycleiq_config_status_t;
+
+typedef enum {
   CYCLEIQ_RIDE_MODE_NORMAL = 0,
   CYCLEIQ_RIDE_MODE_MOUNTAIN = 1,
 } cycleiq_ride_mode_t;
@@ -84,6 +106,9 @@ typedef enum {
   PEAK_PACKET_TYPE_TRIP_PRIMARY = 0x15u,
   PEAK_PACKET_TYPE_TRIP_SECONDARY = 0x16u,
   PEAK_PACKET_TYPE_PROTOCOL_VERSION = 0x17u,
+  PEAK_PACKET_TYPE_CONFIG_FIELD = 0x18u,
+  PEAK_PACKET_TYPE_CONFIG_SNAPSHOT = 0x19u,
+  PEAK_PACKET_TYPE_CONFIG_ACK = 0x1Au,
 } peak_packet_type_t;
 
 #define PEAK_PACKET_BATTERY_STATUS_LEN 5u
@@ -94,6 +119,14 @@ typedef enum {
 #define PEAK_PACKET_TRIP_PRIMARY_LEN 8u
 #define PEAK_PACKET_TRIP_SECONDARY_LEN 3u
 #define PEAK_PACKET_PROTOCOL_VERSION_LEN 6u
+#define PEAK_PACKET_CONFIG_FIELD_LEN 3u
+#define PEAK_PACKET_CONFIG_SNAPSHOT_LEN 6u
+#define PEAK_PACKET_CONFIG_ACK_LEN 3u
+
+#define CYCLEIQ_COMMAND_CONFIG_GET_LEN 1u
+#define CYCLEIQ_COMMAND_CONFIG_SET_FIELD_LEN 4u
+#define CYCLEIQ_COMMAND_CONFIG_SET_SNAPSHOT_LEN 7u
+#define CYCLEIQ_COMMAND_CONFIG_SET_OP_LEN 1u
 
 #define CYCLEIQ_SCALE_SPEED_MPS_TO_CKMH 360.0f
 #define CYCLEIQ_SCALE_VOLTS_TO_CV 100.0f
@@ -113,6 +146,12 @@ typedef struct {
   uint8_t minor;
   uint8_t patch;
 } cycleiq_version_t;
+
+typedef struct {
+  uint16_t max_speed_ckph;
+  uint16_t battery_resistance_mohm;
+  uint16_t wheel_diameter_mm;
+} cycleiq_config_snapshot_t;
 
 typedef enum {
   CYCLEIQ_VERSION_UNSUPPORTED = 0,
@@ -142,6 +181,13 @@ bool cycleiq_set_support_mode(cycleiq_frame_t *frame,
                               cycleiq_support_mode_t mode);
 bool cycleiq_set_ride_mode(cycleiq_frame_t *frame, cycleiq_ride_mode_t mode);
 bool cycleiq_set_screen(cycleiq_frame_t *frame, cycleiq_screen_t screen);
+bool cycleiq_get_config(cycleiq_frame_t *frame, cycleiq_config_field_t field);
+bool cycleiq_set_config_field(cycleiq_frame_t *frame,
+                              cycleiq_config_field_t field, uint16_t value);
+bool cycleiq_set_config_snapshot(cycleiq_frame_t *frame,
+                                 const cycleiq_config_snapshot_t *snapshot);
+bool cycleiq_commit_config(cycleiq_frame_t *frame);
+bool cycleiq_discard_config(cycleiq_frame_t *frame);
 bool cycleiq_get_protocol_version(cycleiq_frame_t *frame);
 
 bool cycleiq_telemetry_live_status(cycleiq_frame_t *frame, float speed_mps,
@@ -165,11 +211,36 @@ bool cycleiq_telemetry_trip_secondary(cycleiq_frame_t *frame,
                                       float average_speed_mps,
                                       float range_km);
 bool cycleiq_telemetry_protocol_version(cycleiq_frame_t *frame);
+bool cycleiq_telemetry_config_field(cycleiq_frame_t *frame,
+                                    cycleiq_config_field_t field,
+                                    uint16_t value);
+bool cycleiq_telemetry_config_snapshot(
+    cycleiq_frame_t *frame, const cycleiq_config_snapshot_t *snapshot);
+bool cycleiq_telemetry_config_ack(cycleiq_frame_t *frame, uint8_t command,
+                                  cycleiq_config_status_t status,
+                                  cycleiq_config_field_t detail);
 
 bool cycleiq_command_read_u8(const cycleiq_frame_t *frame, uint8_t *value);
+bool cycleiq_command_read_config_get(const cycleiq_frame_t *frame,
+                                     cycleiq_config_field_t *field);
+bool cycleiq_command_read_config_op(const cycleiq_frame_t *frame,
+                                    cycleiq_config_op_t *op);
+bool cycleiq_command_read_config_field(
+    const cycleiq_frame_t *frame, cycleiq_config_field_t *field,
+    uint16_t *value);
+bool cycleiq_command_read_config_snapshot(
+    const cycleiq_frame_t *frame, cycleiq_config_snapshot_t *snapshot);
 bool cycleiq_read_protocol_version(const cycleiq_frame_t *frame,
                                    cycleiq_version_t *protocol_version,
                                    cycleiq_version_t *sdk_version);
+bool cycleiq_read_config_field(const cycleiq_frame_t *frame,
+                               cycleiq_config_field_t *field,
+                               uint16_t *value);
+bool cycleiq_read_config_snapshot(const cycleiq_frame_t *frame,
+                                  cycleiq_config_snapshot_t *snapshot);
+bool cycleiq_read_config_ack(const cycleiq_frame_t *frame, uint8_t *command,
+                             cycleiq_config_status_t *status,
+                             cycleiq_config_field_t *detail);
 
 #ifdef __cplusplus
 }

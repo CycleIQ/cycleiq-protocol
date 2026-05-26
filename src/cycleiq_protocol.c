@@ -59,6 +59,10 @@ static void cycleiq_write_be_u16(uint8_t *out, uint16_t value) {
   out[1] = (uint8_t)value;
 }
 
+static uint16_t cycleiq_read_be_u16(const uint8_t *in) {
+  return ((uint16_t)in[0] << 8) | (uint16_t)in[1];
+}
+
 static void cycleiq_write_be_i16(uint8_t *out, int16_t value) {
   cycleiq_write_be_u16(out, (uint16_t)value);
 }
@@ -80,6 +84,14 @@ static bool cycleiq_valid_ride_mode(cycleiq_ride_mode_t mode) {
 
 static bool cycleiq_valid_screen(cycleiq_screen_t screen) {
   return screen <= CYCLEIQ_SCREEN_GRAPH;
+}
+
+static bool cycleiq_valid_config_field(cycleiq_config_field_t field) {
+  return field <= CYCLEIQ_CONFIG_FIELD_WHEEL_DIAMETER_MM;
+}
+
+static bool cycleiq_valid_config_op(cycleiq_config_op_t op) {
+  return op <= CYCLEIQ_CONFIG_OP_DISCARD;
 }
 
 static bool cycleiq_set_len(cycleiq_frame_t *frame, uint8_t len) {
@@ -237,6 +249,75 @@ bool cycleiq_get_protocol_version(cycleiq_frame_t *frame) {
   return cycleiq_set_len(frame, 0);
 }
 
+bool cycleiq_get_config(cycleiq_frame_t *frame, cycleiq_config_field_t field) {
+  if (!cycleiq_valid_config_field(field)) {
+    return false;
+  }
+
+  cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_CONFIG_GET);
+  if (!cycleiq_set_len(frame, CYCLEIQ_COMMAND_CONFIG_GET_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = (uint8_t)field;
+  return true;
+}
+
+bool cycleiq_set_config_field(cycleiq_frame_t *frame,
+                              cycleiq_config_field_t field, uint16_t value) {
+  if (field == CYCLEIQ_CONFIG_FIELD_ALL || !cycleiq_valid_config_field(field)) {
+    return false;
+  }
+
+  cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_CONFIG_SET);
+  if (!cycleiq_set_len(frame, CYCLEIQ_COMMAND_CONFIG_SET_FIELD_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = (uint8_t)CYCLEIQ_CONFIG_OP_SET_FIELD;
+  frame->data[1] = (uint8_t)field;
+  cycleiq_write_be_u16(&frame->data[2], value);
+  return true;
+}
+
+bool cycleiq_set_config_snapshot(cycleiq_frame_t *frame,
+                                 const cycleiq_config_snapshot_t *snapshot) {
+  if (snapshot == NULL) {
+    return false;
+  }
+
+  cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_CONFIG_SET);
+  if (!cycleiq_set_len(frame, CYCLEIQ_COMMAND_CONFIG_SET_SNAPSHOT_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = (uint8_t)CYCLEIQ_CONFIG_OP_SET_SNAPSHOT;
+  cycleiq_write_be_u16(&frame->data[1], snapshot->max_speed_ckph);
+  cycleiq_write_be_u16(&frame->data[3], snapshot->battery_resistance_mohm);
+  cycleiq_write_be_u16(&frame->data[5], snapshot->wheel_diameter_mm);
+  return true;
+}
+
+bool cycleiq_commit_config(cycleiq_frame_t *frame) {
+  cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_CONFIG_SET);
+  if (!cycleiq_set_len(frame, CYCLEIQ_COMMAND_CONFIG_SET_OP_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = (uint8_t)CYCLEIQ_CONFIG_OP_COMMIT;
+  return true;
+}
+
+bool cycleiq_discard_config(cycleiq_frame_t *frame) {
+  cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_CONFIG_SET);
+  if (!cycleiq_set_len(frame, CYCLEIQ_COMMAND_CONFIG_SET_OP_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = (uint8_t)CYCLEIQ_CONFIG_OP_DISCARD;
+  return true;
+}
+
 bool cycleiq_telemetry_live_status(cycleiq_frame_t *frame, float speed_mps,
                                    uint16_t power_w) {
   cycleiq_frame_init(frame, PEAK_CAN_ID, PEAK_PACKET_TYPE_LIVE_STATUS);
@@ -372,12 +453,111 @@ bool cycleiq_telemetry_protocol_version(cycleiq_frame_t *frame) {
   return true;
 }
 
+bool cycleiq_telemetry_config_field(cycleiq_frame_t *frame,
+                                    cycleiq_config_field_t field,
+                                    uint16_t value) {
+  if (field == CYCLEIQ_CONFIG_FIELD_ALL || !cycleiq_valid_config_field(field)) {
+    return false;
+  }
+
+  cycleiq_frame_init(frame, PEAK_CAN_ID, PEAK_PACKET_TYPE_CONFIG_FIELD);
+  if (!cycleiq_set_len(frame, PEAK_PACKET_CONFIG_FIELD_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = (uint8_t)field;
+  cycleiq_write_be_u16(&frame->data[1], value);
+  return true;
+}
+
+bool cycleiq_telemetry_config_snapshot(
+    cycleiq_frame_t *frame, const cycleiq_config_snapshot_t *snapshot) {
+  if (snapshot == NULL) {
+    return false;
+  }
+
+  cycleiq_frame_init(frame, PEAK_CAN_ID, PEAK_PACKET_TYPE_CONFIG_SNAPSHOT);
+  if (!cycleiq_set_len(frame, PEAK_PACKET_CONFIG_SNAPSHOT_LEN)) {
+    return false;
+  }
+
+  cycleiq_write_be_u16(&frame->data[0], snapshot->max_speed_ckph);
+  cycleiq_write_be_u16(&frame->data[2], snapshot->battery_resistance_mohm);
+  cycleiq_write_be_u16(&frame->data[4], snapshot->wheel_diameter_mm);
+  return true;
+}
+
+bool cycleiq_telemetry_config_ack(cycleiq_frame_t *frame, uint8_t command,
+                                  cycleiq_config_status_t status,
+                                  cycleiq_config_field_t detail) {
+  cycleiq_frame_init(frame, PEAK_CAN_ID, PEAK_PACKET_TYPE_CONFIG_ACK);
+  if (!cycleiq_set_len(frame, PEAK_PACKET_CONFIG_ACK_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = command;
+  frame->data[1] = (uint8_t)status;
+  frame->data[2] = (uint8_t)detail;
+  return true;
+}
+
 bool cycleiq_command_read_u8(const cycleiq_frame_t *frame, uint8_t *value) {
   if (frame == NULL || value == NULL || frame->len < 1u) {
     return false;
   }
 
   *value = frame->data[0];
+  return true;
+}
+
+bool cycleiq_command_read_config_get(const cycleiq_frame_t *frame,
+                                     cycleiq_config_field_t *field) {
+  if (frame == NULL || field == NULL ||
+      frame->len != CYCLEIQ_COMMAND_CONFIG_GET_LEN) {
+    return false;
+  }
+
+  *field = (cycleiq_config_field_t)frame->data[0];
+  return cycleiq_valid_config_field(*field);
+}
+
+bool cycleiq_command_read_config_op(const cycleiq_frame_t *frame,
+                                    cycleiq_config_op_t *op) {
+  if (frame == NULL || op == NULL ||
+      frame->len < CYCLEIQ_COMMAND_CONFIG_SET_OP_LEN) {
+    return false;
+  }
+
+  *op = (cycleiq_config_op_t)frame->data[0];
+  return cycleiq_valid_config_op(*op);
+}
+
+bool cycleiq_command_read_config_field(
+    const cycleiq_frame_t *frame, cycleiq_config_field_t *field,
+    uint16_t *value) {
+  if (frame == NULL || field == NULL || value == NULL ||
+      frame->len != CYCLEIQ_COMMAND_CONFIG_SET_FIELD_LEN ||
+      frame->data[0] != (uint8_t)CYCLEIQ_CONFIG_OP_SET_FIELD) {
+    return false;
+  }
+
+  *field = (cycleiq_config_field_t)frame->data[1];
+  *value = cycleiq_read_be_u16(&frame->data[2]);
+  return *field != CYCLEIQ_CONFIG_FIELD_ALL &&
+         cycleiq_valid_config_field(*field);
+}
+
+bool cycleiq_command_read_config_snapshot(
+    const cycleiq_frame_t *frame, cycleiq_config_snapshot_t *snapshot) {
+  if (frame == NULL || snapshot == NULL ||
+      frame->len != CYCLEIQ_COMMAND_CONFIG_SET_SNAPSHOT_LEN ||
+      frame->data[0] != (uint8_t)CYCLEIQ_CONFIG_OP_SET_SNAPSHOT) {
+    return false;
+  }
+
+  snapshot->max_speed_ckph = cycleiq_read_be_u16(&frame->data[1]);
+  snapshot->battery_resistance_mohm = cycleiq_read_be_u16(&frame->data[3]);
+  snapshot->wheel_diameter_mm = cycleiq_read_be_u16(&frame->data[5]);
   return true;
 }
 
@@ -396,5 +576,49 @@ bool cycleiq_read_protocol_version(const cycleiq_frame_t *frame,
   sdk_version->major = frame->data[3];
   sdk_version->minor = frame->data[4];
   sdk_version->patch = frame->data[5];
+  return true;
+}
+
+bool cycleiq_read_config_field(const cycleiq_frame_t *frame,
+                               cycleiq_config_field_t *field,
+                               uint16_t *value) {
+  if (frame == NULL || field == NULL || value == NULL ||
+      cycleiq_frame_type(frame) != PEAK_PACKET_TYPE_CONFIG_FIELD ||
+      frame->len < PEAK_PACKET_CONFIG_FIELD_LEN) {
+    return false;
+  }
+
+  *field = (cycleiq_config_field_t)frame->data[0];
+  *value = cycleiq_read_be_u16(&frame->data[1]);
+  return *field != CYCLEIQ_CONFIG_FIELD_ALL &&
+         cycleiq_valid_config_field(*field);
+}
+
+bool cycleiq_read_config_snapshot(const cycleiq_frame_t *frame,
+                                  cycleiq_config_snapshot_t *snapshot) {
+  if (frame == NULL || snapshot == NULL ||
+      cycleiq_frame_type(frame) != PEAK_PACKET_TYPE_CONFIG_SNAPSHOT ||
+      frame->len < PEAK_PACKET_CONFIG_SNAPSHOT_LEN) {
+    return false;
+  }
+
+  snapshot->max_speed_ckph = cycleiq_read_be_u16(&frame->data[0]);
+  snapshot->battery_resistance_mohm = cycleiq_read_be_u16(&frame->data[2]);
+  snapshot->wheel_diameter_mm = cycleiq_read_be_u16(&frame->data[4]);
+  return true;
+}
+
+bool cycleiq_read_config_ack(const cycleiq_frame_t *frame, uint8_t *command,
+                             cycleiq_config_status_t *status,
+                             cycleiq_config_field_t *detail) {
+  if (frame == NULL || command == NULL || status == NULL || detail == NULL ||
+      cycleiq_frame_type(frame) != PEAK_PACKET_TYPE_CONFIG_ACK ||
+      frame->len < PEAK_PACKET_CONFIG_ACK_LEN) {
+    return false;
+  }
+
+  *command = frame->data[0];
+  *status = (cycleiq_config_status_t)frame->data[1];
+  *detail = (cycleiq_config_field_t)frame->data[2];
   return true;
 }
