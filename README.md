@@ -26,6 +26,18 @@ Compatibility policy:
   stable existing packets are safe, but newer features may be missing locally.
 - `CYCLEIQ_VERSION_UNSUPPORTED`: different major; do not send ride commands.
 
+## Walk Mode
+
+Walk Mode is a hold-to-run command. On button press, the display sends
+`cycleiq_set_walk_mode(..., true)` immediately and repeats it every 250 ms while
+the button remains held. It sends `cycleiq_set_walk_mode(..., false)` immediately
+on release or input cancellation.
+
+The ESC expires Walk Mode when no valid ON command has arrived for 1000 ms, so a
+display reset or interrupted CAN connection cannot leave walk propulsion active.
+The display should parse `PEAK_PACKET_TYPE_WALK_STATE` with
+`cycleiq_read_walk_state()` and use the confirmed ESC state for its UI indicator.
+
 ## ESP-IDF
 
 Use this repository as an ESP-IDF component. The root `CMakeLists.txt` registers
@@ -47,4 +59,10 @@ cycleiq_frame_t frame;
 if (cycleiq_set_gear(&frame, 3)) {
   can_send(frame.id, frame.data, frame.len);
 }
+```
+
+Run the host protocol tests with:
+
+```sh
+make -C tests run
 ```

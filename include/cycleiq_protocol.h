@@ -25,7 +25,7 @@ extern "C" {
 #define CYCLEIQ_CAN_MAX_PAYLOAD_LEN 8u
 
 #define CYCLEIQ_SDK_VERSION_MAJOR 0u
-#define CYCLEIQ_SDK_VERSION_MINOR 3u
+#define CYCLEIQ_SDK_VERSION_MINOR 4u
 #define CYCLEIQ_SDK_VERSION_PATCH 0u
 
 /*
@@ -33,7 +33,7 @@ extern "C" {
  * packet additions, and patch for implementation-only SDK fixes.
  */
 #define CYCLEIQ_PROTOCOL_VERSION_MAJOR 1u
-#define CYCLEIQ_PROTOCOL_VERSION_MINOR 2u
+#define CYCLEIQ_PROTOCOL_VERSION_MINOR 3u
 #define CYCLEIQ_PROTOCOL_VERSION_PATCH 0u
 
 #define PEAK_CAN_ID 0x6Au
@@ -55,6 +55,7 @@ typedef enum {
   CYCLEIQ_COMM_CONFIG_GET = 0x06u,
   CYCLEIQ_COMM_CONFIG_SET = 0x07u,
   CYCLEIQ_COMM_PROTOCOL_VERSION_GET = 0x08u,
+  CYCLEIQ_COMM_WALK_SET = 0x09u,
 } cycleiq_command_t;
 
 typedef enum {
@@ -109,6 +110,7 @@ typedef enum {
   PEAK_PACKET_TYPE_CONFIG_FIELD = 0x18u,
   PEAK_PACKET_TYPE_CONFIG_SNAPSHOT = 0x19u,
   PEAK_PACKET_TYPE_CONFIG_ACK = 0x1Au,
+  PEAK_PACKET_TYPE_WALK_STATE = 0x1Bu,
 } peak_packet_type_t;
 
 #define PEAK_PACKET_BATTERY_STATUS_LEN 5u
@@ -122,7 +124,9 @@ typedef enum {
 #define PEAK_PACKET_CONFIG_FIELD_LEN 3u
 #define PEAK_PACKET_CONFIG_SNAPSHOT_LEN 6u
 #define PEAK_PACKET_CONFIG_ACK_LEN 3u
+#define PEAK_PACKET_WALK_STATE_LEN 1u
 
+#define CYCLEIQ_COMMAND_WALK_SET_LEN 1u
 #define CYCLEIQ_COMMAND_CONFIG_GET_LEN 1u
 #define CYCLEIQ_COMMAND_CONFIG_SET_FIELD_LEN 4u
 #define CYCLEIQ_COMMAND_CONFIG_SET_SNAPSHOT_LEN 7u
@@ -181,6 +185,7 @@ bool cycleiq_set_support_mode(cycleiq_frame_t *frame,
                               cycleiq_support_mode_t mode);
 bool cycleiq_set_ride_mode(cycleiq_frame_t *frame, cycleiq_ride_mode_t mode);
 bool cycleiq_set_screen(cycleiq_frame_t *frame, cycleiq_screen_t screen);
+bool cycleiq_set_walk_mode(cycleiq_frame_t *frame, bool enabled);
 bool cycleiq_get_config(cycleiq_frame_t *frame, cycleiq_config_field_t field);
 bool cycleiq_set_config_field(cycleiq_frame_t *frame,
                               cycleiq_config_field_t field, uint16_t value);
@@ -219,8 +224,11 @@ bool cycleiq_telemetry_config_snapshot(
 bool cycleiq_telemetry_config_ack(cycleiq_frame_t *frame, uint8_t command,
                                   cycleiq_config_status_t status,
                                   cycleiq_config_field_t detail);
+bool cycleiq_telemetry_walk_state(cycleiq_frame_t *frame, bool active);
 
 bool cycleiq_command_read_u8(const cycleiq_frame_t *frame, uint8_t *value);
+bool cycleiq_command_read_walk_mode(const cycleiq_frame_t *frame,
+                                    bool *enabled);
 bool cycleiq_command_read_config_get(const cycleiq_frame_t *frame,
                                      cycleiq_config_field_t *field);
 bool cycleiq_command_read_config_op(const cycleiq_frame_t *frame,
@@ -241,6 +249,7 @@ bool cycleiq_read_config_snapshot(const cycleiq_frame_t *frame,
 bool cycleiq_read_config_ack(const cycleiq_frame_t *frame, uint8_t *command,
                              cycleiq_config_status_t *status,
                              cycleiq_config_field_t *detail);
+bool cycleiq_read_walk_state(const cycleiq_frame_t *frame, bool *active);
 
 #ifdef __cplusplus
 }

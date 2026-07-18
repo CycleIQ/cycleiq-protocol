@@ -244,6 +244,16 @@ bool cycleiq_set_screen(cycleiq_frame_t *frame, cycleiq_screen_t screen) {
   return true;
 }
 
+bool cycleiq_set_walk_mode(cycleiq_frame_t *frame, bool enabled) {
+  cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_WALK_SET);
+  if (!cycleiq_set_len(frame, CYCLEIQ_COMMAND_WALK_SET_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = enabled ? 1u : 0u;
+  return true;
+}
+
 bool cycleiq_get_protocol_version(cycleiq_frame_t *frame) {
   cycleiq_frame_init(frame, CYCLEIQ_CAN_ID, CYCLEIQ_COMM_PROTOCOL_VERSION_GET);
   return cycleiq_set_len(frame, 0);
@@ -501,12 +511,34 @@ bool cycleiq_telemetry_config_ack(cycleiq_frame_t *frame, uint8_t command,
   return true;
 }
 
+bool cycleiq_telemetry_walk_state(cycleiq_frame_t *frame, bool active) {
+  cycleiq_frame_init(frame, PEAK_CAN_ID, PEAK_PACKET_TYPE_WALK_STATE);
+  if (!cycleiq_set_len(frame, PEAK_PACKET_WALK_STATE_LEN)) {
+    return false;
+  }
+
+  frame->data[0] = active ? 1u : 0u;
+  return true;
+}
+
 bool cycleiq_command_read_u8(const cycleiq_frame_t *frame, uint8_t *value) {
   if (frame == NULL || value == NULL || frame->len < 1u) {
     return false;
   }
 
   *value = frame->data[0];
+  return true;
+}
+
+bool cycleiq_command_read_walk_mode(const cycleiq_frame_t *frame,
+                                    bool *enabled) {
+  if (frame == NULL || enabled == NULL ||
+      cycleiq_frame_type(frame) != CYCLEIQ_COMM_WALK_SET ||
+      frame->len != CYCLEIQ_COMMAND_WALK_SET_LEN || frame->data[0] > 1u) {
+    return false;
+  }
+
+  *enabled = frame->data[0] == 1u;
   return true;
 }
 
@@ -620,5 +652,16 @@ bool cycleiq_read_config_ack(const cycleiq_frame_t *frame, uint8_t *command,
   *command = frame->data[0];
   *status = (cycleiq_config_status_t)frame->data[1];
   *detail = (cycleiq_config_field_t)frame->data[2];
+  return true;
+}
+
+bool cycleiq_read_walk_state(const cycleiq_frame_t *frame, bool *active) {
+  if (frame == NULL || active == NULL ||
+      cycleiq_frame_type(frame) != PEAK_PACKET_TYPE_WALK_STATE ||
+      frame->len != PEAK_PACKET_WALK_STATE_LEN || frame->data[0] > 1u) {
+    return false;
+  }
+
+  *active = frame->data[0] == 1u;
   return true;
 }
